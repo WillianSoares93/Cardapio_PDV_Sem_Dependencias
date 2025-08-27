@@ -1284,10 +1284,30 @@ const firebaseConfig = {
                         return acc;
                     }, {});
 
-                    contactInfo = data.contact.reduce((acc, curr) => {
-                        if (curr.data && curr.value) acc[curr.data.toLowerCase().replace(/[^a-z0-9]/g, '')] = curr.value;
-                        return acc;
-                    }, {});
+                                    contactInfo = data.contact.reduce((acc, curr) => {
+                    if (curr.data && curr.value) {
+                        const key = curr.data.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        acc[key] = curr.value;
+                    }
+                    return acc;
+                }, {});
+                
+                // Verificar se o WhatsApp foi mapeado corretamente
+                if (!contactInfo.whatsapp) {
+                    // Tentar diferentes variações do nome do campo
+                    const possibleWhatsAppKeys = ['whatsapp', 'whats', 'telefone', 'phone', 'celular'];
+                    for (const key of possibleWhatsAppKeys) {
+                        if (contactInfo[key]) {
+                            contactInfo.whatsapp = contactInfo[key];
+                            break;
+                        }
+                    }
+                }
+                
+                // Limpar e formatar o número do WhatsApp
+                if (contactInfo.whatsapp) {
+                    contactInfo.whatsapp = contactInfo.whatsapp.replace(/\D/g, ''); // Remove caracteres não numéricos
+                }
                     
                     discountPromotion = allPromotionsData.find(promo => promo.name === 'Desconto no Pedido' && promo.active);
                     
@@ -1988,6 +2008,17 @@ const firebaseConfig = {
                     deliveryFee: selectedAddress.deliveryFee,
                     finalTotal: subtotal - finalDiscountAmount + selectedAddress.deliveryFee
                 };
+
+                // Verificar se o número do WhatsApp está disponível
+                if (!contactInfo.whatsapp || contactInfo.whatsapp.length < 10) {
+                    // Fallback: usar um número padrão se disponível
+                    if (contactInfo.telefone && contactInfo.telefone.length >= 10) {
+                        contactInfo.whatsapp = contactInfo.telefone.replace(/\D/g, '');
+                    } else {
+                        showMessageModal('Erro de configuração: Número do WhatsApp inválido ou não encontrado. Entre em contato com o suporte.');
+                        return;
+                    }
+                }
 
                 fetch('/api/criar-pedido', {
                     method: 'POST',

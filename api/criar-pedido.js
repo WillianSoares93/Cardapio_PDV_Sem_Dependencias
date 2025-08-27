@@ -30,10 +30,24 @@ export default async (req, res) => {
             return res.status(400).json({ error: 'Dados do pedido incompletos.' });
         }
         
-        if (!whatsappNumber) {
-            console.error('Erro Crítico: O número do WhatsApp não foi recebido do frontend.');
-            return res.status(400).json({ error: 'O número de WhatsApp para receber o pedido não foi configurado.' });
+        if (!whatsappNumber || whatsappNumber.length < 10) {
+            console.error('Erro Crítico: O número do WhatsApp não foi recebido ou é inválido:', whatsappNumber);
+            console.error('Dados recebidos:', { order: !!order, selectedAddress: !!selectedAddress, total: !!total, paymentMethod: !!paymentMethod, whatsappNumber });
+            return res.status(400).json({ 
+                error: 'O número de WhatsApp para receber o pedido não foi configurado ou é inválido.',
+                details: 'Verifique se a planilha de contatos contém o campo "WhatsApp" preenchido corretamente com pelo menos 10 dígitos.'
+            });
         }
+        
+        // Garantir que o número tenha o código do país (55 para Brasil)
+        let formattedWhatsAppNumber = whatsappNumber.replace(/\D/g, '');
+        if (!formattedWhatsAppNumber.startsWith('55') && formattedWhatsAppNumber.length === 11) {
+            formattedWhatsAppNumber = '55' + formattedWhatsAppNumber;
+        } else if (!formattedWhatsAppNumber.startsWith('55') && formattedWhatsAppNumber.length === 10) {
+            formattedWhatsAppNumber = '55' + formattedWhatsAppNumber;
+        }
+        
+
 
         // Salva o pedido no Firestore
         let pdvSaved = false;
@@ -113,8 +127,7 @@ ${discountText}Taxa de Entrega: R$ ${total.deliveryFee.toFixed(2).replace('.', '
 ${paymentText}
         `;
         
-        const targetNumber = `55${whatsappNumber.replace(/\D/g, '')}`;
-        const whatsappUrl = `https://wa.me/${targetNumber}?text=${encodeURIComponent(fullMessage.trim())}`;
+        const whatsappUrl = `https://wa.me/${formattedWhatsAppNumber}?text=${encodeURIComponent(fullMessage.trim())}`;
 
         res.status(200).json({ success: true, whatsappUrl, pdvSaved, pdvError });
 

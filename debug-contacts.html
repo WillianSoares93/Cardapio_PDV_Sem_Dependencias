@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - Dados de Contato</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .error { background-color: #fee; border-color: #fcc; }
+        .success { background-color: #efe; border-color: #cfc; }
+        .info { background-color: #eef; border-color: #ccf; }
+    </style>
+</head>
+<body class="p-4">
+    <h1 class="text-2xl font-bold mb-4">Debug - Dados de Contato</h1>
+    
+    <div id="loading" class="debug-section info">
+        <h2>Carregando dados...</h2>
+    </div>
+    
+    <div id="results" class="hidden">
+        <div id="raw-data" class="debug-section">
+            <h2>Dados Brutos da API</h2>
+            <pre id="raw-data-content"></pre>
+        </div>
+        
+        <div id="processed-data" class="debug-section">
+            <h2>Dados Processados</h2>
+            <pre id="processed-data-content"></pre>
+        </div>
+        
+        <div id="whatsapp-check" class="debug-section">
+            <h2>Verificação do WhatsApp</h2>
+            <div id="whatsapp-status"></div>
+        </div>
+    </div>
+    
+    <div id="error" class="debug-section error hidden">
+        <h2>Erro</h2>
+        <div id="error-content"></div>
+    </div>
+
+    <script>
+        async function loadContactData() {
+            try {
+                const response = await fetch('/api/menu');
+                const data = await response.json();
+                
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('results').classList.remove('hidden');
+                
+                // Mostrar dados brutos
+                document.getElementById('raw-data-content').textContent = JSON.stringify(data.contact, null, 2);
+                
+                // Processar dados como no index.html
+                const contactInfo = data.contact.reduce((acc, curr) => {
+                    if (curr.data && curr.value) {
+                        const key = curr.data.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        acc[key] = curr.value;
+                    }
+                    return acc;
+                }, {});
+                
+                // Verificar se o WhatsApp foi mapeado corretamente
+                if (!contactInfo.whatsapp) {
+                    const possibleWhatsAppKeys = ['whatsapp', 'whats', 'telefone', 'phone', 'celular'];
+                    for (const key of possibleWhatsAppKeys) {
+                        if (contactInfo[key]) {
+                            contactInfo.whatsapp = contactInfo[key];
+                            break;
+                        }
+                    }
+                }
+                
+                // Limpar e formatar o número do WhatsApp
+                if (contactInfo.whatsapp) {
+                    contactInfo.whatsapp = contactInfo.whatsapp.replace(/\D/g, '');
+                }
+                
+                // Mostrar dados processados
+                document.getElementById('processed-data-content').textContent = JSON.stringify(contactInfo, null, 2);
+                
+                // Verificar status do WhatsApp
+                const whatsappStatus = document.getElementById('whatsapp-status');
+                if (contactInfo.whatsapp && contactInfo.whatsapp.length >= 10) {
+                    whatsappStatus.innerHTML = `
+                        <div class="success">
+                            ✅ WhatsApp encontrado: ${contactInfo.whatsapp}
+                            <br>Comprimento: ${contactInfo.whatsapp.length} dígitos
+                        </div>
+                    `;
+                } else {
+                    whatsappStatus.innerHTML = `
+                        <div class="error">
+                            ❌ WhatsApp não encontrado ou inválido
+                            <br>Valor: ${contactInfo.whatsapp || 'undefined'}
+                            <br>Comprimento: ${contactInfo.whatsapp ? contactInfo.whatsapp.length : 0} dígitos
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error').classList.remove('hidden');
+                document.getElementById('error-content').textContent = error.message;
+            }
+        }
+        
+        // Carregar dados quando a página carregar
+        loadContactData();
+    </script>
+</body>
+</html>

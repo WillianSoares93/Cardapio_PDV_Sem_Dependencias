@@ -417,6 +417,13 @@ const firebaseConfig = {
             const q = query(collection(db, "pedidos"));
             onSnapshot(q, (snapshot) => {
                 const activeOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                // Debug: verificar estrutura dos pedidos
+                const invalidOrders = activeOrders.filter(order => !order.endereco);
+                if (invalidOrders.length > 0) {
+                    console.warn('Pedidos sem endereço encontrados:', invalidOrders.map(o => o.id));
+                }
+                
                 updateMesasGrid(activeOrders);
             });
         }
@@ -460,20 +467,27 @@ const firebaseConfig = {
             const occupiedTables = new Set();
             const groupedTables = new Map();
 
-            activeOrders.filter(order => order.status !== 'Finalizado' && order.endereco.rua === 'Mesa')
-                .forEach(order => {
-                    if (order.grupoMesas && order.grupoMesas.length > 0) {
-                        const sortedGroup = [...order.grupoMesas].sort((a,b) => a-b);
-                        groupedTables.set(sortedGroup[0], { orderId: order.id, group: sortedGroup });
-                        sortedGroup.forEach(tableNum => occupiedTables.add(tableNum));
-                    } else {
-                        const tableNum = parseInt((order.endereco.clientName || "").replace(/[^0-9]/g, ''));
-                        if (tableNum) {
-                            occupiedTables.add(tableNum);
-                            groupedTables.set(tableNum, { orderId: order.id, group: [tableNum] });
-                        }
+            // Filtrar apenas pedidos válidos com estrutura correta
+            const validOrders = activeOrders.filter(order => 
+                order && 
+                order.status !== 'Finalizado' && 
+                order.endereco && 
+                order.endereco.rua === 'Mesa'
+            );
+
+            validOrders.forEach(order => {
+                if (order.grupoMesas && order.grupoMesas.length > 0) {
+                    const sortedGroup = [...order.grupoMesas].sort((a,b) => a-b);
+                    groupedTables.set(sortedGroup[0], { orderId: order.id, group: sortedGroup });
+                    sortedGroup.forEach(tableNum => occupiedTables.add(tableNum));
+                } else {
+                    const tableNum = parseInt((order.endereco?.clientName || "").replace(/[^0-9]/g, ''));
+                    if (tableNum) {
+                        occupiedTables.add(tableNum);
+                        groupedTables.set(tableNum, { orderId: order.id, group: [tableNum] });
                     }
-                });
+                }
+            });
 
             for (let i = 1; i <= NUMERO_DE_MESAS; i++) {
                 if (occupiedTables.has(i) && !groupedTables.has(i)) continue;
@@ -542,6 +556,14 @@ const firebaseConfig = {
 
             if (docSnap.exists()) {
                 const orderData = docSnap.data();
+                
+                // Verificar se o pedido tem a estrutura correta
+                if (!orderData.endereco) {
+                    console.error('Pedido sem endereço:', orderId, orderData);
+                    alert('Erro: Pedido com estrutura inválida. Entre em contato com o suporte.');
+                    return;
+                }
+                
                 currentOrderId = orderId;
                 manualOrderItems = orderData.itens || [];
                 
@@ -549,12 +571,12 @@ const firebaseConfig = {
                 if (orderData.grupoMesas && orderData.grupoMesas.length > 0) {
                     title = `Adicionando Itens - Mesas ${orderData.grupoMesas.join(' + ')}`;
                 } else {
-                    title = `Adicionando Itens - ${orderData.endereco.clientName}`;
+                    title = `Adicionando Itens - ${orderData.endereco?.clientName || 'Cliente'}`;
                 }
                 pageTitle.textContent = title;
                 
                 const clientNameInput = document.getElementById('manual-clientName');
-                clientNameInput.value = orderData.endereco.clientName;
+                clientNameInput.value = orderData.endereco?.clientName || '';
                 clientNameInput.readOnly = false;
                 
                 updateManualOrderDisplay();
